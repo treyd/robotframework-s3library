@@ -20,7 +20,7 @@ limitations under the License.
 
 from keywords import Keywords
 
-__version__ = '0.01'
+__version__ = '0.1'
 
 class S3Library(Keywords):
     """

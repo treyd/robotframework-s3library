@@ -21,6 +21,7 @@ from boto.s3.connection import S3Connection, OrdinaryCallingFormat
 from boto.s3.key import Key
 from boto.exception import S3ResponseError, S3CreateError
 from robot.api import logger
+import os
 
 class Keywords(object):
     
@@ -48,8 +49,8 @@ class Keywords(object):
             logger.debug("Initializing S3Connection to AWS default")
             self._conn = S3Connection(access_key, secret_key,
                                       calling_format=OrdinaryCallingFormat(),
-                                      validate_certs=False,
-                                      path=path)
+                                      validate_certs=False)
+
 
     def _parse_s3_location(self, location):
         is_secure=True
@@ -102,6 +103,7 @@ class Keywords(object):
 
         return host, port, is_secure, path
         
+        
     def Get_Bucket_List(self):
         """
         Returns a list of buckets in the S3 account
@@ -110,6 +112,7 @@ class Keywords(object):
         
         result = [ b.name for b in bucket_list ]
         return result
+    
     
     def Get_Object_List(self, bucket, prefix=None, exclude=None):
         """
@@ -127,6 +130,7 @@ class Keywords(object):
         else:
             object_list = [ obj.name.rstrip('/') for obj in objects ]
         return object_list
+    
     
     def Get_Object_Metatags(self, obj, bucket):
         """
@@ -157,6 +161,51 @@ class Keywords(object):
         
         return metadata_dict
     
+    
+    def Download_Object(self, obj, bucket, path):
+        """
+        Downloads given object from bucket to destination file
+        
+        _obj_: target object
+        _bucket_: bucket containing object
+        _path_: local path to write object to.  if _path_ is a directory, then
+        _obj_ will be used as the filename
+        """
+        if os.path.isdir(path):
+            #This is supposed to be Windows-proof but hasn't been tested
+            path = path.rstrip(os.path.sep) + os.path.sep + obj
+            
+        fp = open(path, 'w')
+        
+        s3bucket = self._conn.get_bucket(bucket)
+        s3obj = Key(s3bucket, obj)
+        logger.debug("Calling get_file for object %s, downloading to %s" % 
+                     (obj, path))
+        s3obj.get_file(fp)
+
+        
+    def Upload_Object(self, path, bucket):
+        """
+        Uploads given file into bucket
+
+        _path_: local path to file to upload.  if _path_ is a directory, then
+        an exception will be raised        
+        _bucket_: target bucket
+
+        """
+        if os.path.isdir(path):
+            raise NotImplementedError("Can't upload directories")
+        
+        fp = open(path, 'r')
+        
+        s3bucket = self._conn.get_bucket(bucket)
+        s3obj = Key(s3bucket)
+        s3obj.key = path
+        s3obj.size = os.stat(path).st_size
+        logger.debug("Calling send_file for object %s" % path)
+        s3obj.send_file(fp)
+
+
     def Delete_Bucket(self, bucket):
         """
         Deletes target bucket
@@ -171,6 +220,7 @@ class Keywords(object):
         
         logger.debug("Deleting empty bucket %s" % bucket)
         self._conn.delete_bucket(bucket)
+        
         
     def Empty_Bucket(self, bucket):
         """
@@ -192,6 +242,7 @@ class Keywords(object):
             else:
                 raise
             
+        
     def Create_Bucket(self, bucket):
         """
         Creates a bucket
